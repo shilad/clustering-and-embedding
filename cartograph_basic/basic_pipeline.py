@@ -9,10 +9,12 @@ sys.setdefaultencoding('utf8')
 
 input_dir = 'data/ext/simple'
 
-vecs = pd.read_table(input_dir + '/vectors.sample_500.tsv', index_col=0, skiprows=1, header=None)
+sample_size = 500
+
+vecs = pd.read_table(input_dir + '/vectors.sample_' + str(sample_size) + '.tsv', index_col=0, skiprows=1, header=None)
 
 # Run t-SNE
-out = bh_sne(vecs, pca_d=None, theta=0.5, perplexity=3)
+out = bh_sne(vecs, pca_d=None, theta=0.5, perplexity=30)
 # Clustering
 clusters = list(KMeans(15).fit(out).labels_)
 
@@ -42,6 +44,7 @@ popularity['rank in cluster'] = [False] * len(popularity)
 vecs.drop(vecs.columns[0:-2], axis=1,
           inplace=True)  # drop all columns but the cluster and name column
 
+vecs.to_csv(input_dir + '/cluster_with_internalID.sample_' + str(sample_size) + '.tsv', sep='\t', index_label='index')
 # Find most popular node in each cluster to plot, might take a lot of time
 
 # for i in vecs['cluster'].unique():
