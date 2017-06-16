@@ -1,9 +1,9 @@
 import pandas as pd
-# import sys
-#
-# reload(sys)
-# sys.setdefaultencoding('utf8')
-#
+import sys
+
+reload(sys)
+sys.setdefaultencoding('utf8')
+# #
 input_dir = 'data/ext/simple'
 #
 # Match internal and external IDs
@@ -80,3 +80,5 @@ listId = featureDict.index.tolist()
 allGraph = allGraph.filter(items=listId, axis=0)
 
 allGraph.to_csv(input_dir + '/AllGraph_dict.sample_5000.tsv', sep='\t', index_label='id', columns=['externalId', 'category'])
+
+

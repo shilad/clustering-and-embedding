@@ -3,11 +3,15 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from tsne import bh_sne
 import sys
+import tfidf
+import ast
+import numpy as np
 
 reload(sys)
 sys.setdefaultencoding('utf8')
 
 input_dir = 'data/ext/simple'
+output_dir = input_dir + '/GeneratedFiles'
 
 sample_size = 500
 
@@ -16,7 +20,9 @@ vecs = pd.read_table(input_dir + '/vectors.sample_' + str(sample_size) + '.tsv',
 # Run t-SNE
 out = bh_sne(vecs, pca_d=None, theta=0.5, perplexity=30)
 # Clustering
-clusters = list(KMeans(15).fit(out).labels_)
+kMeans = KMeans(15).fit(out)
+clusters = list(kMeans.labels_)
+centroids = list(kMeans.cluster_centers_)
 
 # Get names for plotting
 names = pd.read_table(input_dir + '/names.tsv', index_col=0, skiprows=1, header=None)
@@ -56,9 +62,25 @@ vecs.to_csv(input_dir + '/cluster_with_internalID.sample_' + str(sample_size) + 
 #     maxPopName = str(popularity.loc[popularity['order'] == maxPop]['label'].values[0])  # Most popular node in cluster
 #     popularity.loc[popularity['label'] == maxPopName, 'rank in cluster'] = True
 
+tfidf.run()
+
+
 # Plot svg
+
+# Helper function to make sure points are not on top of each other
+def rand_jitter(arr):
+    stdev = .01 * (max(arr) - min(arr))
+    return arr + np.random.randn(len(arr)) * stdev
+
+
+def jitter(x, y, s=20, c='b', marker='o', cmap=None, norm=None, vmin=None, vmax=None, alpha=None, linewidths=None,
+           verts=None, hold=None, **kwargs):
+    return plt.scatter(rand_jitter(x), rand_jitter(y), s=s, c=c, marker=marker, cmap=cmap, norm=norm, vmin=vmin,
+                       vmax=vmax, alpha=alpha, linewidths=linewidths, verts=verts, hold=hold, **kwargs)
+
+
 s = [2] * len(clusters)  # size of nodes
-plt.scatter(out[:, 0], out[:, 1], s=s, c=clusters, alpha=0.5)
+jitter(out[:, 0], out[:, 1], s=s, c=clusters, alpha=0.5)
 
 for label, x, y in zip(name, out[:, 0], out[:, 1]):
     rank = popularity.loc[popularity['label'] == label]['order'].values
@@ -74,6 +96,22 @@ for label, x, y in zip(name, out[:, 0], out[:, 1]):
 
     plt.text(x, y, label, horizontalalignment='center',
              verticalalignment='bottom', fontsize=size, color='black')
+
+# Plot centroids and labels
+xCentroids = [i[0] for i in centroids]
+yCentroids = [i[1] for i in centroids]
+jitter(xCentroids, yCentroids, s=10, c='r')
+# labels = [i for i in range(0, len(centroids))]
+
+labels_df = pd.read_table(output_dir + '/AllGraph_tfidf_candidateLabels.sample_' + str(sample_size) + '.tsv',
+                          index_col='cluster')
+labels_df.sort_index(inplace=True)
+labelsList = [ast.literal_eval(i) for i in labels_df['labels']]
+labels = [i[0].strip() for i in labelsList]
+
+for label, x, y in zip(labels, xCentroids, yCentroids):
+    plt.text(x, y, label, horizontalalignment='center',
+             verticalalignment='bottom', fontsize=6, color='red')
 
 plt.savefig("test.svg", format="svg")
 plt.show()
