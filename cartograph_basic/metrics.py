@@ -13,7 +13,7 @@ def embedTrustworthiness(vecs, embedding, k):
     vecs = vecs.as_matrix()
     dist_hd = squareform(pdist(vecs))
     neighbors_hd = dist_hd.argsort() + 1  # neighbors ordered by similarity
-    neighbors_hd = neighbors_hd[:, :k]  # Get k nearest neighbors in high dimension
+    k_neighbors_hd = neighbors_hd[:, :k]  # Get k nearest neighbors in high dimension
 
     points = embedding.as_matrix()
     dist_ld = squareform(pdist(points))
@@ -24,13 +24,13 @@ def embedTrustworthiness(vecs, embedding, k):
     n = len(vecs)
     T = 0
     for i in range(n):
-        hd = neighbors_hd[i]
+        hd = k_neighbors_hd[i]
         ld = neighbors_ld[i]
         for j in ld:
             if j not in hd:
-                pos = np.where(ld == j)[0][0]  # Find index of j in ld
+                pos = np.where(neighbors_hd[i] == j)[0][0]  # Find index of j in the sorted neighbors of i in hd.
                 T += pos - k
-    T = 1 - abs((2 / float(n * k * (2 * n - 3 * k - 1))) * T)
+    T = 1 - (2 / float(n * k * (2 * n - 3 * k - 1))) * T
     return T
 
 
@@ -60,7 +60,6 @@ def embedTrustworthiness_percent(vecs, embedding, k):
     return count/float(neighbors_ld.shape[0]*neighbors_ld.shape[1])  # Percentage of retained neighbors
 
 if __name__ == '__main__':
-
     # Read data
     input_dir = 'data/ext/simple'
     vecs = pd.read_table(input_dir + '/vectors.sample_500.tsv', skiprows=1, skip_blank_lines=True, header=None, index_col=0)
