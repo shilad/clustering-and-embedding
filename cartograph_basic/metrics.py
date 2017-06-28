@@ -59,16 +59,17 @@ def embedTrustworthiness_percent(vecs, embedding, k):
                 count += 1
     return count/float(neighbors_ld.shape[0]*neighbors_ld.shape[1])  # Percentage of retained neighbors
 
+if __name__ == '__main__':
 
-# Read data
-input_dir = 'data/ext/simple'
-vecs = pd.read_table(input_dir + '/vectors.sample_500.tsv', skiprows=1, skip_blank_lines=True, header=None, index_col=0)
-points = pd.read_table(input_dir + '/coordinates.sample_500.tsv', index_col='index')
+    # Read data
+    input_dir = 'data/ext/simple'
+    vecs = pd.read_table(input_dir + '/vectors.sample_500.tsv', skiprows=1, skip_blank_lines=True, header=None, index_col=0)
+    points = pd.read_table(input_dir + '/coordinates.sample_500.tsv', index_col='index')
 
-import time
-start = time.time()
+    import time
+    start = time.time()
 
-print embedTrustworthiness(vecs, points, k=10)
-print embedTrustworthiness_percent(vecs, points, k=10)
+    print embedTrustworthiness(vecs, points, k=10)
+    print embedTrustworthiness_percent(vecs, points, k=10)
 
-print "Time: ", time.time() - start
+    print "Time: ", time.time() - start
