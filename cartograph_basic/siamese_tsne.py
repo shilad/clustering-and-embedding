@@ -92,9 +92,12 @@ M.sort(axis=1)
 # Sample ranks are the neighbor indexes that are going to be selected
 # We want to sample near neighbors much more than far neighbors
 # We add one to skip the item itself
-sample_ranks = np.random.exponential(0.05, sample_size * samples_per_item * 5)
-sample_ranks = (sample_ranks * sample_size).astype(int) + 1
-sample_ranks = sample_ranks[np.where(sample_ranks < (sample_size-1))]
+# sample_ranks = np.random.exponential(0.05, sample_size * samples_per_item * 5)
+# sample_ranks = (sample_ranks * sample_size).astype(int) + 1
+# sample_ranks = sample_ranks[np.where(sample_ranks < (sample_size-1))]
+
+# Experimenting with uniform sampling.
+sample_ranks = np.random.randint(1, sample_size-1, sample_size * samples_per_item * 5)
 
 # TODO: This should really be done as a batch...
 A = np.zeros((samples_per_item * sample_size, ndims))
