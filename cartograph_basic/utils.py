@@ -35,7 +35,7 @@ def plot(ids, X, Y, input_dir='./data/ext/simple', clusters=None):
 
     for label, x, y in zip(name, X, Y):
         plt.text(x, y, label, horizontalalignment='center',
-                 verticalalignment='bottom', fontsize=5, color='black')
+                 verticalalignment='bottom', fontsize=10, color='black')
 
     plt.savefig("test.svg", format="svg")
     plt.show()

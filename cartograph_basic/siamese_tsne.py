@@ -21,10 +21,12 @@ from keras.layers import Dense, Dropout, Input, Lambda
 from keras.optimizers import RMSprop
 from keras import backend as K
 from numpy.linalg import norm
+from scipy.spatial.distance import pdist, squareform
 
 import utils
+from metrics import embedTrustworthiness, embedTrustworthiness_percent
 
-
+MAX_DIST = None
 
 def euclidean_distance(vects):
     x, y = vects
@@ -44,11 +46,12 @@ def contrastive_loss(y_true, y_pred):
     return K.mean(y_true * K.square(y_pred) +
                   (1 - y_true) * K.square(K.maximum(margin - y_pred, 0)))
 
-def euclidean_loss(y_true, y_pred):
-    '''Contrastive loss from Hadsell-et-al.'06
-    http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
-    '''
+def shilad_loss(high_dim_dist, low_dim_dist):
+    """L2 Loss weighted by distance"""
+    return K.mean((1 - high_dim_dist / MAX_DIST) * K.square(low_dim_dist - high_dim_dist), axis=-1)
 
+def euclidean_loss(y_true, y_pred):
+    """L2 Loss"""
     return K.mean(K.square(y_pred - y_true), axis=-1)
 
 def create_base_network(input_dim):
@@ -60,6 +63,8 @@ def create_base_network(input_dim):
     seq.add(Dense(50, activation='relu'))
     seq.add(Dropout(0.1))
     seq.add(Dense(20, activation='relu'))
+    seq.add(Dropout(0.1))
+    seq.add(Dense(10, activation='relu'))
     seq.add(Dropout(0.1))
     seq.add(Dense(2, activation='relu'))
     return seq
@@ -76,12 +81,16 @@ ndims = vecs.shape[1]
 vecs = vecs / norm(vecs, axis=1).reshape(sample_size, 1)
 ids = df.index.tolist()
 
-cor = np.corrcoef(vecs)                 # correlation matrix
-neighbors = np.fliplr(cor.argsort())    # neighbors ordered by similarity
 
+dists = squareform(pdist(vecs)) # distance matrix
+neighbors = dists.argsort()     # neighbors ordered by similarity
 samples_per_item = 100
 
+M = np.copy(dists)
+M.sort(axis=1)
+
 # Sample ranks are the neighbor indexes that are going to be selected
+# We want to sample near neighbors much more than far neighbors
 # We add one to skip the item itself
 sample_ranks = np.random.exponential(0.05, sample_size * samples_per_item * 5)
 sample_ranks = (sample_ranks * sample_size).astype(int) + 1
@@ -90,18 +99,20 @@ sample_ranks = sample_ranks[np.where(sample_ranks < (sample_size-1))]
 # TODO: This should really be done as a batch...
 A = np.zeros((samples_per_item * sample_size, ndims))
 B = np.zeros((samples_per_item * sample_size, ndims))
+D = np.zeros((samples_per_item * sample_size, ))
+
 for i in range(samples_per_item * sample_size):
     r = sample_ranks[i]
     j = i % sample_size
     k = neighbors[j][r]
     A[i] = vecs[j]
     B[i] = vecs[k]
+    D[i] = 100.0 * r / sample_size # distance is neighbor percentile
 
-S = np.sum(A * B).T         # Cosine similarity
-D = norm(A - B, axis=1)     # Euclidean distance
+MAX_DIST = max(list(D))
 
 input_dim = 200
-epochs = 5
+epochs = 50
 
 # network definition
 base_network = create_base_network(input_dim)
@@ -129,7 +140,13 @@ model.fit([A, B], D,
 
 coords = base_network.predict(vecs)
 
-utils.plot(ids, coords[:,0], coords[:,1])
+# write coordinates
+
+print(embedTrustworthiness(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
+print(embedTrustworthiness_percent(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
+
+
+# utils.plot(ids, coords[:,0], coords[:,1])
 
 # print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
 # print('* Accuracy on test set: %0.2f%%' % (100 * te_acc))
