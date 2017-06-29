@@ -3,6 +3,7 @@
 
 import numpy as np
 np.random.seed(71)
+import pandas as pd
 
 import matplotlib
 matplotlib.use('Agg')
@@ -125,6 +126,12 @@ print "load data"
 # # cifar-10
 # (X_train, y_train), (X_test, y_test) = cifar10.load_data()
 # n, channel, row, col = X_train.shape
+
+input_dir = './data/ext/simple'
+sample_size= 50
+df = pd.read_table(input_dir + '/vectors.sample_' + str(sample_size) + '.tsv', index_col=0, skiprows=1, header=None)
+
+vecs = df.as_matrix()
 
 # # mnist
 (X_train, y_train), (X_test, y_test) = mnist.load_data()
