@@ -34,7 +34,7 @@ def embedTrustworthiness(vecs, embedding, k):
     return T
 
 
-def embedTrustworthiness_percent(vecs, embedding, k):
+def neighborOverlap(vecs, embedding, k):
     """
     Trustworthiness is based on the percentage of local neighbors in high dimensional data that are retained in the
     low dimensional embedding.
@@ -69,6 +69,6 @@ if __name__ == '__main__':
     start = time.time()
 
     print embedTrustworthiness(vecs, points, k=10)
-    print embedTrustworthiness_percent(vecs, points, k=10)
+    print neighborOverlap(vecs, points, k=10)
 
     print "Time: ", time.time() - start
