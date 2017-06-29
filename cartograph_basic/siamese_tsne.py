@@ -24,7 +24,7 @@ from numpy.linalg import norm
 from scipy.spatial.distance import pdist, squareform
 
 import utils
-from metrics import embedTrustworthiness, embedTrustworthiness_percent
+from metrics import embedTrustworthiness, neighborOverlap
 
 MAX_DIST = None
 
@@ -58,19 +58,17 @@ def create_base_network(input_dim):
     '''Base network to be shared (eq. to feature extraction).
     '''
     seq = Sequential()
-    seq.add(Dense(128, input_shape=(input_dim,), activation='relu'))
+    seq.add(Dense(200, input_shape=(input_dim,), activation='relu'))
     seq.add(Dropout(0.1))
-    seq.add(Dense(50, activation='relu'))
+    seq.add(Dense(200, input_shape=(input_dim,), activation='relu'))
     seq.add(Dropout(0.1))
-    seq.add(Dense(20, activation='relu'))
-    seq.add(Dropout(0.1))
-    seq.add(Dense(10, activation='relu'))
+    seq.add(Dense(1000, input_shape=(input_dim,), activation='relu'))
     seq.add(Dropout(0.1))
     seq.add(Dense(2, activation='relu'))
     return seq
 
 input_dir = './data/ext/simple'
-sample_size= 500
+sample_size= 50
 df = pd.read_table(input_dir + '/vectors.sample_' + str(sample_size) + '.tsv', index_col=0, skiprows=1, header=None)
 
 vecs = df.as_matrix()
@@ -84,7 +82,7 @@ ids = df.index.tolist()
 
 dists = squareform(pdist(vecs)) # distance matrix
 neighbors = dists.argsort()     # neighbors ordered by similarity
-samples_per_item = 100
+samples_per_item = 1000
 
 M = np.copy(dists)
 M.sort(axis=1)
@@ -92,12 +90,9 @@ M.sort(axis=1)
 # Sample ranks are the neighbor indexes that are going to be selected
 # We want to sample near neighbors much more than far neighbors
 # We add one to skip the item itself
-# sample_ranks = np.random.exponential(0.05, sample_size * samples_per_item * 5)
-# sample_ranks = (sample_ranks * sample_size).astype(int) + 1
-# sample_ranks = sample_ranks[np.where(sample_ranks < (sample_size-1))]
-
-# Experimenting with uniform sampling.
-sample_ranks = np.random.randint(1, sample_size-1, sample_size * samples_per_item * 5)
+sample_ranks = np.random.exponential(0.05, sample_size * samples_per_item * 5)
+sample_ranks = (sample_ranks * sample_size).astype(int) + 1
+sample_ranks = sample_ranks[np.where(sample_ranks < (sample_size-1))]
 
 # TODO: This should really be done as a batch...
 A = np.zeros((samples_per_item * sample_size, ndims))
@@ -136,9 +131,9 @@ model = Model([input_a, input_b], distance)
 
 # train
 rms = RMSprop()
-model.compile(loss=euclidean_loss, optimizer=rms)
+model.compile(loss=shilad_loss, optimizer=rms)
 model.fit([A, B], D,
-          batch_size=128,
+          batch_size=50,
           epochs=epochs)
 
 coords = base_network.predict(vecs)
@@ -146,7 +141,7 @@ coords = base_network.predict(vecs)
 # write coordinates
 
 print(embedTrustworthiness(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
-print(embedTrustworthiness_percent(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
+print(neighborOverlap(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
 
 
 # utils.plot(ids, coords[:,0], coords[:,1])
