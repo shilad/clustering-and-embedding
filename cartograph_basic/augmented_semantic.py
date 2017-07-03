@@ -10,7 +10,7 @@ from sklearn.decomposition import TruncatedSVD
 
 input_dir = 'data/ext/simple'
 output_dir = input_dir + '/GeneratedFiles'
-sample_size = 500
+sample_size = 5000
 
 allGraph = pd.read_table(input_dir + '/AllGraph_dict.sample_' + str(sample_size) + '.tsv', index_col='id')
 
