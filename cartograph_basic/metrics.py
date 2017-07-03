@@ -70,13 +70,22 @@ def testCountryQuality():
             np.copy(circle) + 1.0,
             np.copy(circle) + 2.0
         ), axis=0)
-        q4 = countryQuality(coords, clusters)
+        q5 = countryQuality(coords, clusters)
 
-        # print(q1, q2, q3, q4)
+        # ridiculously separated
+        coords = np.concatenate((
+            np.copy(circle),
+            np.copy(circle) + 100000000,
+            np.copy(circle) + 200000000
+        ), axis=0)
+        q6 = countryQuality(coords, clusters)
+
         assert(q1 < q3)
         assert(q1 < q4)
         assert(q2 < q3)
-        assert(q2 < q4)
+        assert(q3 < q4)
+        assert(q4 < q5)
+        assert(q5 < q6)
 
 
 def countryQuality(coords, clusters, minPerCell=5):
@@ -88,6 +97,8 @@ def countryQuality(coords, clusters, minPerCell=5):
     :return:
     """
 
+    coords = np.array(coords)
+    clusters = np.array(clusters)
     assert(clusters.shape[0] == coords.shape[0])
     assert(coords.shape[1] == 2)
     C = np.max(clusters)
@@ -95,9 +106,12 @@ def countryQuality(coords, clusters, minPerCell=5):
     mins = np.min(coords, axis=0)
     maxes = np.max(coords, axis=0)
 
+    # Minimum zoom where clusters could be distinctly embedded
+    startZoom = int(np.ceil(np.log2(C ** 0.5)))
+
     nZooms = 0
     total = 0
-    for zoom in range(1, 100):
+    for zoom in range(startZoom, 1000):
         numCells = 2**zoom
         if N / (numCells ** 2) < minPerCell:
             break
@@ -117,7 +131,7 @@ def countryQuality(coords, clusters, minPerCell=5):
 
         # The following is a ratio of actual score / max possible score
         # Both are adjusted by subtracting off the MINIMUM possible max for a cell.
-        cell_scores = np.nan_to_num((cell_maxes - cell_mins) / (sums - cell_mins + 0.00000001))
+        cell_scores = np.nan_to_num((cell_maxes - cell_mins) / (sums - cell_mins + 0.0000000001))
 
         # Weights are based on degrees of freedom, so a cell with one point has weight zero
         weights = np.sqrt(np.maximum(0, sums - 1))
@@ -128,7 +142,7 @@ def countryQuality(coords, clusters, minPerCell=5):
 
     return total / nZooms
 
-def embedTrustworthiness(vecs, embedding, k):
+def embedTrustworthiness(vecs, embedding, k=10):
     """
     Computes the trustworthiness of the embedding: To what extent the local structure of data is retained in a low-dim
     embedding in a value between 0 - 1.
@@ -140,7 +154,10 @@ def embedTrustworthiness(vecs, embedding, k):
     neighbors_hd = dist_hd.argsort() + 1  # neighbors ordered by similarity
     k_neighbors_hd = neighbors_hd[:, :k]  # Get k nearest neighbors in high dimension
 
-    points = embedding.as_matrix()
+    if type(embedding) == np.ndarray:
+        points = embedding
+    else:
+        points = embedding.as_matrix()
     dist_ld = squareform(pdist(points))
     neighbors_ld = dist_ld.argsort() + 1  # neighbors ordered by similarity
     neighbors_ld = neighbors_ld[:, :k]  # Get k nearest neighbors in low dimension
@@ -159,7 +176,7 @@ def embedTrustworthiness(vecs, embedding, k):
     return T
 
 
-def neighborOverlap(vecs, embedding, k):
+def neighborOverlap(vecs, embedding, k=10):
     """
     Trustworthiness is based on the percentage of local neighbors in high dimensional data that are retained in the
     low dimensional embedding.
@@ -171,7 +188,10 @@ def neighborOverlap(vecs, embedding, k):
     neighbors_hd = dist_hd.argsort() + 1  # neighbors ordered by similarity
     neighbors_hd = neighbors_hd[:, :k]  # Get k nearest neighbors in high dimension
 
-    points = embedding.as_matrix()
+    if type(embedding) == np.ndarray:
+        points = embedding
+    else:
+        points = embedding.as_matrix()
     dist_ld = squareform(pdist(points))
     neighbors_ld = dist_ld.argsort() + 1  # neighbors ordered by similarity
     neighbors_ld = neighbors_ld[:, :k]  # Get k nearest neighbors in low dimension

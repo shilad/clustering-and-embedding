@@ -7,6 +7,8 @@ import tfidf
 import ast
 import numpy as np
 
+from metrics import countryQuality, embedTrustworthiness, neighborOverlap
+
 reload(sys)
 sys.setdefaultencoding('utf8')
 
@@ -21,10 +23,15 @@ vecs = pd.read_table(input_dir + '/vecs_augmented.sample_' + str(sample_size) + 
 out = bh_sne(vecs, pca_d=None, theta=0.5, perplexity=30)
 
 # Clustering
-kMeans = KMeans(10).fit(out)
-# kMeans = KMeans(10).fit(vecs)
+# kMeans = KMeans(10).fit(out)
+kMeans = KMeans(10).fit(vecs)
 clusters = list(kMeans.labels_)
 centroids = list(kMeans.cluster_centers_)
+
+
+print('trustworthiness', embedTrustworthiness(vecs, out))
+print('overlap', neighborOverlap(vecs, out))
+print('country quality', countryQuality(out, clusters))
 
 # Get names for plotting
 names = pd.read_table(input_dir + '/names.tsv', index_col=0, skiprows=1, header=None)
