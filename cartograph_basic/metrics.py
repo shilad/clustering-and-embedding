@@ -3,6 +3,131 @@ import pandas as pd
 from scipy.spatial.distance import pdist, squareform
 
 
+def kl(p, q):
+    """Kullback-Leibler divergence D(P || Q) for discrete distributions
+    Parameters
+    ----------
+    p, q : array-like, dtype=float, shape=n
+    Discrete probability distributions.
+
+    From https://gist.github.com/swayson/86c296aa354a555536e6765bbe726ff7
+    """
+    p = np.asarray(p, dtype=np.float)
+    q = np.asarray(q, dtype=np.float)
+
+    return np.sum(np.where(p != 0, p * np.log(p / q), 0))
+
+def testCountryQuality():
+    N = 1000
+
+
+    for i in range(10):
+        circle = np.random.normal(size=(N // 3, 2))
+
+        # Totally random
+        coords = np.random.random((N, 2))
+        coords[:, 0] *= 10.0
+        coords[:, 1] *= 5.0
+
+        clusters = np.random.randint(1, 10, (N,))
+
+        q1 = countryQuality(coords, clusters)
+
+        # cluster ids: first, second, and third circles
+        clusters = np.concatenate((
+            np.zeros((N//3,), dtype=int),
+            np.zeros((N//3,), dtype=int) + 1,
+            np.zeros((N//3,), dtype=int) + 2
+        ))
+
+        # mixed together circles
+        coords = np.concatenate((
+            np.copy(circle),
+            np.copy(circle),
+            np.copy(circle)
+        ), axis=0)
+        q2 = countryQuality(coords, clusters)
+
+        # slightly separated
+        coords = np.concatenate((
+            np.copy(circle),
+            np.copy(circle) + 0.5,
+            np.copy(circle) + 1.0
+        ), axis=0)
+        q3 = countryQuality(coords, clusters)
+
+        # more separated
+        coords = np.concatenate((
+            np.copy(circle),
+            np.copy(circle) + 0.8,
+            np.copy(circle) + 1.6
+        ), axis=0)
+        q4 = countryQuality(coords, clusters)
+
+        # very separated
+        coords = np.concatenate((
+            np.copy(circle),
+            np.copy(circle) + 1.0,
+            np.copy(circle) + 2.0
+        ), axis=0)
+        q4 = countryQuality(coords, clusters)
+
+        # print(q1, q2, q3, q4)
+        assert(q1 < q3)
+        assert(q1 < q4)
+        assert(q2 < q3)
+        assert(q2 < q4)
+
+
+def countryQuality(coords, clusters, minPerCell=5):
+    """
+    Returns a score between 0.0 and 1.0 that indicates the "quality" of countries in 2-d space.
+
+    :param coords: 2-D array of X,Y coordinates
+    :param clusters: 1-D array of cluster ids.
+    :return:
+    """
+
+    assert(clusters.shape[0] == coords.shape[0])
+    assert(coords.shape[1] == 2)
+    C = np.max(clusters)
+    N = coords.shape[0]
+    mins = np.min(coords, axis=0)
+    maxes = np.max(coords, axis=0)
+
+    nZooms = 0
+    total = 0
+    for zoom in range(1, 100):
+        numCells = 2**zoom
+        if N / (numCells ** 2) < minPerCell:
+            break
+        sz = np.min(maxes - mins + 0.0001) / numCells
+        dims = np.ceil((maxes - mins) / sz).astype(int)
+        counts = np.zeros((dims[0], dims[1], C))
+        gridxys = np.floor((coords - mins) / sz).astype(int)
+        for i in range(N):
+            x,y = gridxys[i,:]
+            c = clusters[i]
+            counts[x, y, c-1] += 1
+
+        counts = counts.reshape((dims[0] * dims[1], C))
+        cell_maxes = np.max(counts, axis=1)             # Actual max per cell
+        sums = np.sum(counts, axis=1)                   # Number of points per cell
+        cell_mins = np.ceil(sums / C).astype(int)       # Theoretical minimum cell max for that sum
+
+        # The following is a ratio of actual score / max possible score
+        # Both are adjusted by subtracting off the MINIMUM possible max for a cell.
+        cell_scores = np.nan_to_num((cell_maxes - cell_mins) / (sums - cell_mins + 0.00000001))
+
+        # Weights are based on degrees of freedom, so a cell with one point has weight zero
+        weights = np.sqrt(np.maximum(0, sums - 1))
+
+        score = np.sum(weights * cell_scores) / np.sum(weights)
+        total += score
+        nZooms += 1
+
+    return total / nZooms
+
 def embedTrustworthiness(vecs, embedding, k):
     """
     Computes the trustworthiness of the embedding: To what extent the local structure of data is retained in a low-dim
