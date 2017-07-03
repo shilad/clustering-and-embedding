@@ -15,7 +15,7 @@ sample_size = 500
 allGraph = pd.read_table(input_dir + '/AllGraph_dict.sample_' + str(sample_size) + '.tsv', index_col='id')
 
 # Find dimension of sparse matrix
-catIndex = {}
+catIndex = {}  # A dictionary of all categories with indices of categories.
 i = 0
 for id, row in allGraph.iterrows():
     catDict = ast.literal_eval(row['category'])
@@ -23,7 +23,6 @@ for id, row in allGraph.iterrows():
         if label not in catIndex.keys():
             catIndex[label] = i
             i += 1
-
 numCol = len(catIndex.keys())
 numRow = sample_size
 
@@ -45,15 +44,13 @@ truncatedLabels = svd.components_.T
 #     if truncatedLabels[i, :].sum() != 0:
 #         truncatedLabels[i, :] = truncatedLabels[i, :]/truncatedLabels[i, :].sum()
 
-
 vecs = pd.read_table(input_dir + '/vectors.sample_' + str(sample_size) + '.tsv', index_col=0, skiprows=1, header=None)
-vecs.to_csv(input_dir + '/vectors_norm.sample_' + str(sample_size) + '.tsv', sep='\t')
-
 # Normalize rows in vecs
 # vecs = vecs.div(vecs.sum(axis=1), axis=0)
+# vecs.to_csv(input_dir + '/vectors_norm.sample_' + str(sample_size) + '.tsv', sep='\t')
 
 for i in range(truncatedLabels.shape[1]):
     vecs[len(vecs.columns)+1] = truncatedLabels[:, i]*10
 
-vecs.to_csv(input_dir + '/vecs_augmented.sample_500.tsv', sep='\t')
+vecs.to_csv(input_dir + '/vecs_augmented.sample_' + str(sample_size) + '.tsv', sep='\t')
 

@@ -15,12 +15,14 @@ output_dir = input_dir + '/GeneratedFiles'
 
 sample_size = 500
 
-vecs = pd.read_table(input_dir + '/vectors.sample_' + str(sample_size) + '.tsv', index_col=0, skiprows=1, header=None)
+vecs = pd.read_table(input_dir + '/vecs_augmented.sample_' + str(sample_size) + '.tsv', index_col=0, skiprows=1, header=None)
 
 # Run t-SNE
 out = bh_sne(vecs, pca_d=None, theta=0.5, perplexity=30)
+
 # Clustering
-kMeans = KMeans(15).fit(out)
+kMeans = KMeans(10).fit(out)
+# kMeans = KMeans(10).fit(vecs)
 clusters = list(kMeans.labels_)
 centroids = list(kMeans.cluster_centers_)
 
@@ -33,24 +35,36 @@ for (id, row) in vecs.iterrows():
     name.append(str(names.loc[id][1]))
     k += 1
 
+# Get externalIds
+ids = pd.read_table(input_dir + '/ids.tsv', index_col=0)
+ids = ids.astype(str)
+ids.index = ids.index.astype(str)
+
+# Save cluster file
+vecs['cluster'] = clusters
+vecs['name'] = name
+vecs.sort_values('cluster', inplace=True)
+vecs.drop(vecs.columns[0:-2], axis=1,
+          inplace=True)  # drop all columns but the cluster and name column
+vecs.to_csv(input_dir + '/cluster_with_internalID_augmented.sample_' + str(sample_size) + '.tsv', sep='\t', index_label='index')
+
+# Run TF-IDF Labeling
+categoryPath = input_dir + '/AllGraph_dict.sample_' + str(sample_size) + '.tsv'
+clusterPath = input_dir + '/cluster_with_internalID_augmented.sample_' + str(sample_size) + '.tsv'
+labelPath = output_dir + '/augmentedAllGraph_candidateLabels.sample_' + str(sample_size) + '.tsv'
+tfidf.tfidf(categoryPath, clusterPath, labelPath)
+
 # Get popularity of nodes for plotting
 # Display large labels for the most popular nodes overall and the most popular node in each cluster
 
 popularity = pd.read_table(input_dir + '/popularity.tsv', index_col=0, skiprows=1, header=None)
-vecs['cluster'] = clusters
-vecs['name'] = name
-vecs.sort_values('cluster', inplace=True)
+
 popularity['label'] = [str(i) for i in names[1]]
 popularity.sort_values(1, inplace=True, ascending=False)
 order = [i + 1 for i in range(len(popularity))]
 popularity['order'] = order
-
 popularity['rank in cluster'] = [False] * len(popularity)
 
-vecs.drop(vecs.columns[0:-2], axis=1,
-          inplace=True)  # drop all columns but the cluster and name column
-
-vecs.to_csv(input_dir + '/cluster_with_internalID.sample_' + str(sample_size) + '.tsv', sep='\t', index_label='index')
 # Find most popular node in each cluster to plot, might take a lot of time
 
 # for i in vecs['cluster'].unique():
@@ -61,9 +75,6 @@ vecs.to_csv(input_dir + '/cluster_with_internalID.sample_' + str(sample_size) + 
 #         if maxPop > zpop: maxPop = zpop
 #     maxPopName = str(popularity.loc[popularity['order'] == maxPop]['label'].values[0])  # Most popular node in cluster
 #     popularity.loc[popularity['label'] == maxPopName, 'rank in cluster'] = True
-
-tfidf.run()
-
 
 # Plot svg
 
@@ -97,13 +108,12 @@ for label, x, y in zip(name, out[:, 0], out[:, 1]):
     plt.text(x, y, label, horizontalalignment='center',
              verticalalignment='bottom', fontsize=size, color='black')
 
-# Plot centroids and labels
+# Plot centroids and labels of cluster
 xCentroids = [i[0] for i in centroids]
 yCentroids = [i[1] for i in centroids]
-jitter(xCentroids, yCentroids, s=10, c='r')
-# labels = [i for i in range(0, len(centroids))]
+jitter(xCentroids, yCentroids, s=6, c='r')
 
-labels_df = pd.read_table(output_dir + '/AllGraph_tfidf_candidateLabels.sample_' + str(sample_size) + '.tsv',
+labels_df = pd.read_table(labelPath,
                           index_col='cluster')
 labels_df.sort_index(inplace=True)
 labelsList = [ast.literal_eval(i) for i in labels_df['labels']]
