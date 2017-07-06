@@ -19,4 +19,3 @@ if __name__ == '__main__':
         shutil.rmtree(output_dir, True)
         os.makedirs(output_dir)
         make_samples.make_dataset(input_dir, output_dir, n)
-        augment_everything(output_dir)

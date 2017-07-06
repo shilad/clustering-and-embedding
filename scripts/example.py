@@ -2,32 +2,39 @@ import sys
 
 sys.path.insert(0, '..')
 
-import numpy as np
-import pandas as pd
 from tsne import bh_sne
 
-from zalimar.evaluate.metrics import *
+from clumbed.evaluate.metrics import *
+from clumbed.wrangle.augment import augment_everything
+from clumbed.wrangle.result_dir import ResultDir
 
+
+# Handle non-ASCII characters
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+# Prepare input and output directories
+input_dir = 'data/simple_500'
+res = ResultDir()
+res.log('Input dir: ' + input_dir)
+res.log('Output dir: ' + res.get())
+augment_everything(input_dir, res)
 
-input_dir = 'data/simple_5000'
-
+# These are the vector embeddings we will consider.
 VECTOR_NAMES = [
-    'vectors.tsv',
-    'vectors_kmeans_10.tsv',
-    'vectors_label_20_kmeans_10.tsv',
-    'vectors_label_20.tsv'
+    input_dir + '/vectors.tsv',
+    res.get() + '/vectors_kmeans.tsv',
+    res.get() + '/vectors_label_kmeans.tsv',
+    res.get() + '/vectors_label.tsv'
 ]
 
-# Load original vectors:
+# Load original vectors as a reference
 ovecs = pd.read_table(input_dir + '/vectors.tsv', index_col=0, skiprows=1, header=None)
 
 for vfname in VECTOR_NAMES:
     print('evaluting ', vfname)
-    vecs = pd.read_table(input_dir + '/' + vfname, index_col=0, skiprows=1, header=None)
-    clusters = pd.read_table(input_dir + '/cluster_10.tsv', index_col=0)
+    vecs = pd.read_table(vfname, index_col=0, skiprows=1, header=None)
+    clusters = pd.read_table(res.get() + '/cluster.tsv', index_col=0)
     assert(clusters.shape[0] == vecs.shape[0])
     N = vecs.shape[0]
     D = vecs.shape[1]
@@ -39,10 +46,13 @@ for vfname in VECTOR_NAMES:
     clusters = vecs.merge(clusters, left_index=True, right_index=True)['cluster']
     assert(clusters.shape[0] == N)
 
-    print('\nresults for ' + vfname)
-    print('trustworthiness', embedTrustworthiness(vecs,xy))
-    print('overlap', neighborOverlap(vecs, xy))
-    print('orig-trustworthiness', embedTrustworthiness(ovecs,xy))
-    print('orig-overlap', neighborOverlap(ovecs, xy))
-    print('country quality', countryQuality(xy, clusters))
-    print()
+    # Log evaluation results
+    res.log_and_print('\nresults for ' + vfname)
+    res.log_and_print('trustworthiness: %f' % embedTrustworthiness(vecs,xy))
+    res.log_and_print('overlap %f' % neighborOverlap(vecs, xy))
+    res.log_and_print('orig-trustworthiness %f' % embedTrustworthiness(ovecs,xy))
+    res.log_and_print('orig-overlap %f' % neighborOverlap(ovecs, xy))
+    res.log_and_print('country quality %f' % countryQuality(xy, clusters))
+
+
+    # TODO: Plot the results and save the images
