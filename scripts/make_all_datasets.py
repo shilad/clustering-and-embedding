@@ -4,9 +4,9 @@ import sys
 
 sys.path.insert(0, '..')
 
-from zalimar.wrangle.augment import augment_everything
+from clumbed.wrangle.augment import augment_everything
 
-from zalimar.wrangle import make_samples
+from clumbed.wrangle import make_samples
 
 if __name__ == '__main__':
     reload(sys)
