@@ -3,7 +3,6 @@
 
 import numpy as np
 np.random.seed(71)
-import pandas as pd
 
 import matplotlib
 matplotlib.use('Agg')
@@ -26,16 +25,16 @@ import multiprocessing as mp
 
 batch_size = 5000
 low_dim = 2
-nb_epoch = 100
+nb_epoch = 10
 shuffle_interval = nb_epoch + 1
 n_jobs = 4
 perplexity = 30.0
 
-
+#computing some form of probability
 def Hbeta(D, beta):
     P = np.exp(-D * beta)
     sumP = np.sum(P)
-    H = np.log(sumP) + beta * np.sum(D * P) / sumP
+    H = np.log(sumP) + beta * np.sum(D * P) / sumP # this isnt right
     P = P / sumP
     return H, P
 
@@ -45,14 +44,15 @@ def x2p_job(data):
     beta = 1.0
     betamin = -np.inf
     betamax = np.inf
-    H, thisP = Hbeta(Di, beta)
+    H, thisP = Hbeta(Di, beta) #compute the gaussian kernel and entropy for the current precision
 
     Hdiff = H - logU
     tries = 0
     while np.abs(Hdiff) > tol and tries < 50:
+        #they are using newton's bisection method to bind the correct H with the right P
         if Hdiff > 0:
             betamin = beta
-            if betamax == -np.inf:
+            if betamax == np.inf:
                 beta = beta * 2
             else:
                 beta = (betamin + betamax) / 2
@@ -111,6 +111,7 @@ def calculate_P(X):
 def KLdivergence(P, Y):
     alpha = low_dim - 1.
     sum_Y = K.sum(K.square(Y), axis=1)
+    #print 'sum_Y: ' + str(sum_Y)
     eps = K.variable(10e-15)
     D = sum_Y + K.reshape(sum_Y, [-1, 1]) - 2 * K.dot(Y, K.transpose(Y))
     Q = K.pow(1 + D / alpha, -(alpha + 1) / 2)
@@ -126,12 +127,6 @@ print "load data"
 # # cifar-10
 # (X_train, y_train), (X_test, y_test) = cifar10.load_data()
 # n, channel, row, col = X_train.shape
-
-input_dir = './data/ext/simple'
-sample_size= 50
-df = pd.read_table(input_dir + '/vectors.sample_' + str(sample_size) + '.tsv', index_col=0, skiprows=1, header=None)
-
-vecs = df.as_matrix()
 
 # # mnist
 (X_train, y_train), (X_test, y_test) = mnist.load_data()
@@ -155,10 +150,13 @@ print "build model"
 model = Sequential()
 model.add(Dense(500, input_shape=(X_train.shape[1],)))
 model.add(Activation('relu'))
+
 model.add(Dense(500))
 model.add(Activation('relu'))
+
 model.add(Dense(2000))
 model.add(Activation('relu'))
+
 model.add(Dense(2))
 
 model.compile(loss=KLdivergence, optimizer="adam")
@@ -186,8 +184,8 @@ for epoch in range(nb_epoch):
                       marker='o', s=3, edgecolor='')
     images.append([img])
 
-ani = ArtistAnimation(fig, images, interval=100, repeat_delay=2000)
-ani.save("mlp_process.mp4")
+#ani = ArtistAnimation(fig, images, interval=100, repeat_delay=2000)
+#ani.save("mlp_process.mp4")
 
 plt.clf()
 fig = plt.figure(figsize=(5, 5))
