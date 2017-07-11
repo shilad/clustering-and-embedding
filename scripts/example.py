@@ -113,5 +113,6 @@ for vname, vconfig in VECTOR_CONFIG.items():
     plt = plot(names, vecs_df.index, xy[:, 0], xy[:, 1], clusters_df['cluster'])
     plt.savefig(res.get() + '/plot_' + vname + '.svg', format="svg")
     # plt.show()
+    plt.clf()  # Clear plot
 
     # TODO: Hierarchical
