@@ -1,4 +1,6 @@
 import json
+import os
+
 import pandas as pd
 import sys
 
@@ -26,6 +28,11 @@ def make_dataset(input_dir, output_dir, sample_size):
     ids = ids[ids.index.isin(internal_ids)]
     ids.to_csv(output_dir + '/ids.tsv', sep='\t', index_label='id')
     ext_to_internal = dict(zip(ids['externalId'], ids.index))
+
+    # Filter names
+    names = pd.read_table(input_dir + '/names.tsv', index_col=0)
+    names = names[names.index.isin(internal_ids)]
+    names.to_csv(output_dir + '/names.tsv', sep='\t', index_label='id')
 
     # Filter vectors
     vecs = pd.read_table(input_dir + '/vectors.tsv', skiprows=1, skip_blank_lines=True, header=None, index_col=0)
@@ -60,6 +67,16 @@ def make_dataset(input_dir, output_dir, sample_size):
 
     # Write out category labels
     categories.to_csv(output_dir + '/categories.tsv', sep='\t', index_label='id', columns=['externalId', 'category'])
+
+    # Write out links sample
+    if os.path.isfile(input_dir + '/links.tsv'):
+        out = open(output_dir + '/links.tsv', 'w')
+        for line in open(input_dir + '/links.tsv'):
+            if line.startswith('id'): continue  # skip header
+            tokens = line.split('\t')
+            id = tokens[0]
+            links = sorted(set(i for i in tokens[1:] if int(i) in internal_ids))
+            out.write(id + '\t' + '\t'.join(links) + '\n')
 
 
 if __name__ == '__main__':
