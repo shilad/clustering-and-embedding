@@ -20,7 +20,7 @@ def tfidf(categoryPath, clusterPath , labelPath, tfidfPath=None):
     allGraphDict.index = allGraphDict.index.astype(str)
     allGraphDict.sort_index(inplace=True)
 
-    sampleCluster = pd.read_table(clusterPath, index_col='index')
+    sampleCluster = pd.read_table(clusterPath, index_col='id')
     sampleCluster = sampleCluster.astype(str)
     sampleCluster.index = sampleCluster.index.astype(str)
     sampleCluster.sort_index(inplace=True)
@@ -36,7 +36,7 @@ def tfidf(categoryPath, clusterPath , labelPath, tfidfPath=None):
             catCounts[key] += 1
 
     for i, (_, row) in enumerate(allGraphDict.iterrows()):
-        if i % 100 == 0: print 'Calculated TF-IDF for {}/{}'.format(i, len(allGraphDict))
+        if i % 1000 == 0: print 'Calculated TF-IDF for {}/{}'.format(i, len(allGraphDict))
         catDict = ast.literal_eval(row['category'])
         for key, tf in catDict.items():
             df = catCounts[key]

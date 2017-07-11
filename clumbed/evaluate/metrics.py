@@ -204,6 +204,10 @@ def neighborOverlap(vecs, embedding, k=10):
                 count += 1
     return count/float(neighbors_ld.shape[0]*neighbors_ld.shape[1])  # Percentage of retained neighbors
 
+
+def labelMetric():
+    pass
+
 if __name__ == '__main__':
     # Read data
     input_dir = 'data/ext/simple'
