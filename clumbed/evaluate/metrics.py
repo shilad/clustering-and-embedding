@@ -378,6 +378,17 @@ def testbetweenClusterHeterogeneity():
 
     assert all([MID1 > MID2, MID2 > MID3, MID3 > MID4])
 
+def labelMetric(tfidf_scores):
+    """
+    :param tfidf_scores: A data frame with the following columns: articles ids, tf-idf scores, clusters
+    :return: A score of clusters' labels based on the average tf-idf scores of articles in the clusters
+    """
+    stat = defaultdict(list)
+    for id, row in tfidf_scores.iterrows():
+        stat[row['cluster']].append(np.mean([x[1] for x in row['score']]))
+    return np.mean([np.mean(stat[i]) for i in stat])
+
+
 if __name__ == '__main__':
     # Read data
     input_dir = 'data/ext/simple'
