@@ -4,6 +4,8 @@ import os
 import pandas as pd
 import sys
 
+from tsne import bh_sne
+
 
 def make_dataset(input_dir, output_dir, sample_size):
     """
@@ -75,8 +77,14 @@ def make_dataset(input_dir, output_dir, sample_size):
             if line.startswith('id'): continue  # skip header
             tokens = line.split('\t')
             id = tokens[0]
+            if int(id) not in internal_ids: continue
             links = sorted(set(i for i in tokens[1:] if int(i) in internal_ids))
             out.write(id + '\t' + '\t'.join(links) + '\n')
+
+    # Write out example coordinates
+    # xy = bh_sne(vecs.as_matrix(), pca_d=None)
+    # xy_df = pd.DataFrame(data={'x': xy[:, 0], 'y': xy[:, 1]}, index=vecs.index)
+    # xy_df.to_csv(output_dir + '/coords.tsv', sep='\t')
 
 
 if __name__ == '__main__':

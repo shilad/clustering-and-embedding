@@ -4,7 +4,6 @@ import sys
 
 sys.path.insert(0, '..')
 
-from clumbed.wrangle.augment import augment_everything
 
 from clumbed.wrangle import make_samples
 
