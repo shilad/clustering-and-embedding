@@ -44,7 +44,7 @@ def make_dataset(input_dir, output_dir, sample_size):
     # Read in the category vector and clean it up
     # Match internal and external IDs and replace them
     colnames = ['externalId'] + list(range(300))
-    categories = pd.read_table(input_dir + '/AllGraph.tsv', names=colnames, error_bad_lines=False)
+    categories = pd.read_table(input_dir + '/categories.tsv', names=colnames, error_bad_lines=False)
     categories = categories[categories['externalId'].isin(ext_to_internal)]
 
     # join all vector columns into same column and drop other columns
