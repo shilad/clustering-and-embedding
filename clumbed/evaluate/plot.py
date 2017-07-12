@@ -1,23 +1,22 @@
 from __future__ import print_function
-import pandas as pd
 import matplotlib.pyplot as plt
 import sys
 import numpy as np
+# from matplotlib.colors import
 
 reload(sys)
 sys.setdefaultencoding('utf8')
 
 
-def plot(ids, X, Y, input_dir='./data/ext/simple', clusters=None):
+def plot(name_df, ids, X, Y, clusters, pops = None):
     # Get names for plotting
-    names = pd.read_table(input_dir + '/names.tsv', index_col=0, skiprows=1, header=None)
     name = []
     k = 0  # For logging
     for id in ids:
-        name.append(str(names.loc[id][1]))
+        name.append(str(name_df.loc[id][1]))
         k += 1
-    if k % 1000 == 0:
-        print("Found names of {}/{} vectors".format(k, len(ids)))
+        if k % 1000 == 0:
+            print("Found names of {}/{} vectors".format(k, len(ids)))
 
     # Plot svg
 
@@ -31,11 +30,13 @@ def plot(ids, X, Y, input_dir='./data/ext/simple', clusters=None):
         return plt.scatter(rand_jitter(x), rand_jitter(y), marker=marker, cmap=cmap, norm=norm, vmin=vmin,
                            vmax=vmax, alpha=alpha, linewidths=linewidths, verts=verts, hold=hold, **kwargs)
 
-    jitter(X, Y, alpha=0.5)
+    col = plt.cm.get_cmap('tab20')
+    colors = [col.colors[i] for i in clusters]
+
+    jitter(X, Y, s=[2]*len(X), c=colors, alpha=0.5)
 
     for label, x, y in zip(name, X, Y):
         plt.text(x, y, label, horizontalalignment='center',
-                 verticalalignment='bottom', fontsize=10, color='black')
+                 verticalalignment='bottom', fontsize=2, color='black')
 
-    plt.savefig("test.svg", format="svg")
-    plt.show()
+    return plt
