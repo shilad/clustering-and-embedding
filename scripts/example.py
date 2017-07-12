@@ -83,6 +83,7 @@ for vname, vconfig in VECTOR_CONFIG.items():
     category_df = pd.read_table(input_dir + '/categories.tsv', index_col='id')
     label_df, tfidf_scores = tfidf(category_df, clusters_df)
     tfidf_scores = tfidf_scores.merge(clusters_df, left_index=True, right_index=True)
+    cluster_to_label = { c : l[0] for (c, l) in zip(label_df.index, label_df['labels'])}
 
     # Write out vectors and clusters
     vecs_df.to_csv(vpath, sep='\t')
@@ -110,7 +111,7 @@ for vname, vconfig in VECTOR_CONFIG.items():
 
     # Plot the results and save the images
     names = pd.read_table(input_dir + '/names.tsv', index_col=0, skiprows=1, header=None)
-    plt = plot(names, vecs_df.index, xy[:, 0], xy[:, 1], clusters_df['cluster'])
+    plt = plot(names, vecs_df.index, xy[:, 0], xy[:, 1], clusters_df['cluster'], cluster_to_label)
     plt.savefig(res.get() + '/plot_' + vname + '.svg', format="svg")
     # plt.show()
     plt.clf()  # Clear plot
