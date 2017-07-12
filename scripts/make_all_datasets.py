@@ -4,7 +4,6 @@ import sys
 
 sys.path.insert(0, '..')
 
-
 from clumbed.wrangle import make_samples
 
 if __name__ == '__main__':
