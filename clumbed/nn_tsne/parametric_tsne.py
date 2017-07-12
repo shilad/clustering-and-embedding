@@ -5,8 +5,7 @@ import numpy as np
 np.random.seed(71)
 
 import matplotlib
-matplotlib.use('Agg')
-
+from tsne import bh_sne
 from keras import backend as K
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten
@@ -16,19 +15,19 @@ from keras.callbacks import Callback
 from keras.utils import np_utils
 from keras.objectives import categorical_crossentropy
 from keras.datasets import cifar10, mnist
-
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.animation import ArtistAnimation
-
+from sklearn.cluster import KMeans
 import multiprocessing as mp
+from mvpa2.suite import *
 
-
-batch_size = 5000
+batch_size = 500
 low_dim = 2
-nb_epoch = 10
+nb_epoch = 1000
 shuffle_interval = nb_epoch + 1
 n_jobs = 4
-perplexity = 30.0
+perplexity = 2
 
 #computing some form of probability
 def Hbeta(D, beta):
@@ -129,32 +128,38 @@ print "load data"
 # n, channel, row, col = X_train.shape
 
 # # mnist
-(X_train, y_train), (X_test, y_test) = mnist.load_data()
-n, row, col = X_train.shape
-channel = 1
+#(X_train, y_train), (X_test, y_test) = mnist.load_data()
+#n, row, col = X_train.shape
+#channel = 1
 
-X_train = X_train.reshape(-1, channel * row * col)
-X_test = X_test.reshape(-1, channel * row * col)
-X_train = X_train.astype('float32')
-X_test = X_test.astype('float32')
-X_train /= 255
-X_test /= 255
-print "X_train.shape:", X_train.shape
-print "X_test.shape:", X_test.shape
+#X_train = X_train.reshape(-1, channel * row * col)
+#X_test = X_test.reshape(-1, channel * row * col)
+#X_train = X_train.astype('float32')
+#X_test = X_test.astype('float32')
+#X_train /= 255
+#X_test /= 255
+#print "X_train.shape:", X_train.shape
+#print "X_test.shape:", X_test.shape
 
+vecs = pd.read_table('data/simple_all/vectors.tsv',index_col=0,skiprows=1, header=None)
+X_train = vecs.values[0:2000,]
+X_test = vecs.values[5000:6000,]
+n = len(X_train)
 batch_num = int(n // batch_size)
 m = batch_num * batch_size
+kMeansTrain = KMeans(20).fit(X_train)
+kMeansTest = KMeans(10).fit(X_test)
 
 
 print "build model"
 model = Sequential()
-model.add(Dense(500, input_shape=(X_train.shape[1],)))
+model.add(Dense(50, input_shape=(X_train.shape[1],)))
 model.add(Activation('relu'))
 
-model.add(Dense(500))
+model.add(Dense(50))
 model.add(Activation('relu'))
 
-model.add(Dense(2000))
+model.add(Dense(350))
 model.add(Activation('relu'))
 
 model.add(Dense(2))
@@ -163,8 +168,8 @@ model.compile(loss=KLdivergence, optimizer="adam")
 
 
 print "fit"
-images = []
-fig = plt.figure(figsize=(5, 5))
+#images = []
+#fig = plt.figure(figsize=(5, 5))
 
 for epoch in range(nb_epoch):
     # shuffle X_train and calculate P
@@ -179,18 +184,33 @@ for epoch in range(nb_epoch):
     print "Epoch: {}/{}, loss: {}".format(epoch+1, nb_epoch, loss / batch_num)
 
     # visualize training process
-    pred = model.predict(X_test)
-    img = plt.scatter(pred[:, 0], pred[:, 1], c=y_test,
-                      marker='o', s=3, edgecolor='')
-    images.append([img])
+pred = model.predict(X_train)
+plt.scatter(pred[:, 0], pred[:, 1],marker='.',c=[matplotlib.cm.spectral(float(i) / 20) for i in kMeansTrain.labels_])
+    #plt.savefig('img_5000_train_'+str(epoch))
+plt.savefig('FigureTrainParametric_Perplexity' + str(perplexity) + '_Epoch' + str(nb_epoch))
+plt.clf()
+
+pred = model.predict(X_test)
+plt.scatter(pred[:, 0], pred[:, 1],marker='.',c=[matplotlib.cm.spectral(float(i) / 20) for i in kMeansTest.labels_])
+plt.savefig('FigureTestParametric_Perplexity' + str(perplexity) + '_Epoch' + str(nb_epoch))
+plt.clf()
+
+    #images.append([img])
+#
 
 #ani = ArtistAnimation(fig, images, interval=100, repeat_delay=2000)
 #ani.save("mlp_process.mp4")
 
-plt.clf()
-fig = plt.figure(figsize=(5, 5))
-pred = model.predict(X_test)
-plt.scatter(pred[:, 0], pred[:, 1], c=y_test, marker='o', s=4, edgecolor='')
-fig.tight_layout()
+#plt.clf()
+#fig = plt.figure(figsize=(5, 5))
+#pred = model.predict(X_test)
+#plt.scatter(pred[:, 0], pred[:, 1], marker='o', s=4, edgecolor='')
+#fig.tight_layout()
+#plt.show()
+#plt.savefig("mlp_result.png")
 
-plt.savefig("mlp_result.png")
+#out = bh_sne(X_train, pca_d=None, theta=0.5, perplexity=3)
+#plt.scatter(out[:, 0], out[:, 1],
+#                      marker='.',c=[matplotlib.cm.spectral(float(i) / 20) for i in kMeansTest.labels_])
+
+#plt.show()
