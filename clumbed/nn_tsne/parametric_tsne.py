@@ -2,6 +2,7 @@
 
 
 import numpy as np
+import tsne
 
 from clumbed.evaluate.metrics import embedTrustworthiness, neighborOverlap
 
@@ -22,7 +23,7 @@ low_dim = 2
 nb_epoch = 500
 shuffle_interval = nb_epoch + 1
 n_jobs = 4
-perplexity = 3.0
+perplexity = 30
 
 
 def Hbeta(D, beta):
@@ -77,8 +78,6 @@ def x2p_job(data):
         H, thisP = Hbeta(Di, beta)
         Hdiff = H - logU
         tries += 1
-
-    print((1 / beta) ** 0.5)
 
     return i, thisP
 
@@ -155,19 +154,23 @@ vecs = df.as_matrix()
 
 
 # Sanity check
+coords = tsne.bh_sne(vecs, perplexity=perplexity)
+print('original values:')
+print(embedTrustworthiness(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
+print(neighborOverlap(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
 
 
-
-X = pca(vecs, initial_dims).real
+# X = pca(vecs, initial_dims).real
+X = vecs
 n, d = X.shape
 
 print "build model"
 model = Sequential()
-model.add(Dense(500, input_shape=(d,)))
+model.add(Dense(25, input_shape=(d,)))
+model.add(Activation('relu'))
+model.add(Dense(50))
 model.add(Activation('relu'))
 model.add(Dense(500))
-model.add(Activation('relu'))
-model.add(Dense(2000))
 model.add(Activation('relu'))
 model.add(Dense(2))
 
