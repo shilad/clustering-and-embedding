@@ -20,7 +20,7 @@ import multiprocessing as mp
 
 initial_dims = 50
 low_dim = 2
-nb_epoch = 500
+nb_epoch = 1000
 shuffle_interval = nb_epoch + 1
 n_jobs = 4
 perplexity = 30
@@ -187,10 +187,12 @@ for epoch in range(nb_epoch):
         P /= 4
     # train
     loss = model.train_on_batch(X, P)
-    print "Epoch: {}/{}, loss: {}".format(epoch+1, nb_epoch, loss)
 
     # visualize training process
     coords = model.predict(X)
 
-    print(embedTrustworthiness(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
-    print(neighborOverlap(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
+    if epoch % 50 == 0:
+        print "Epoch: {}/{}, loss: {}".format(epoch+1, nb_epoch, loss)
+        print('trustworthiness %f, overlap %f' %
+              (embedTrustworthiness(pd.DataFrame(vecs), pd.DataFrame(coords), 10),
+              neighborOverlap(pd.DataFrame(vecs), pd.DataFrame(coords), 10)))
