@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
@@ -205,6 +207,18 @@ def neighborOverlap(vecs, embedding, k=10):
             if i in ld:
                 count += 1
     return count/float(neighbors_ld.shape[0]*neighbors_ld.shape[1])  # Percentage of retained neighbors
+
+
+def labelMetric(tfidf_scores):
+    """
+    :param tfidf_scores: A data frame with the following columns: articles ids, tf-idf scores, clusters
+    :return: A score of clusters' labels based on the average tf-idf scores of articles in the clusters
+    """
+    stat = defaultdict(list)
+    for id, row in tfidf_scores.iterrows():
+        stat[row['cluster']].append(np.mean([x[1] for x in row['score']]))
+    return np.mean([np.mean(stat[i]) for i in stat])
+
 
 def withinClusterHomogeneity(clusterCatsTable):
     '''
