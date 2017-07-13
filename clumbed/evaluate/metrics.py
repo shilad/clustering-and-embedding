@@ -1,9 +1,9 @@
-from collections import defaultdict
-
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
-
+import ast
+from collections import defaultdict
+import numpy as np
 
 def kl(p, q):
     """Kullback-Leibler divergence D(P || Q) for discrete distributions
@@ -206,11 +206,182 @@ def neighborOverlap(vecs, embedding, k=10):
                 count += 1
     return count/float(neighbors_ld.shape[0]*neighbors_ld.shape[1])  # Percentage of retained neighbors
 
+def withinClusterHomogeneity(clusterCatsTable):
+    '''
+    Calculates the ability of a clustering algorithm to preserve the category structure of a word during clustering
+    See http://www.jmlr.org/papers/volume3/dhillon03a/dhillon03a.pdf for equation (13)
+    :param clusterCatsTable: table with articles, category count (in JSON format) and cluster id
+    :return: difference in mutual information
+    '''
+
+    #Instantiates variables
+    articleLength = 1.0 * len(clusterCatsTable)
+    catsCluster = defaultdict(list)
+    clusterCatsDict =  defaultdict(lambda: defaultdict(int))
+    totalsCatsPerWord = defaultdict(int)
+    clusterProbDict = {}
+    pi = 1.0/len(clusterCatsTable)
+    finalKL = 0
+
+
+    for _, (id, row) in enumerate(clusterCatsTable.iterrows()):
+        catDict = ast.literal_eval(row['category'])
+        totalsCatsPerWord[id] = sum(catDict.values())
+        total = 1.0 * totalsCatsPerWord[id]
+        probsDict = {key: val/total for key, val in catDict.iteritems()} #Calculates p(c_i|a_t)
+        clusterCatsTable.loc[id,'categoryProb'] = str(probsDict)
+        clusterId = row['cluster']
+        catsCluster[clusterId].extend([key for key in catDict if not (key in catsCluster[clusterId])])
+
+    #calculates p2
+    for i in clusterCatsTable['cluster'].unique():
+        idCluster = clusterCatsTable.loc[clusterCatsTable['cluster'] == i].index
+        clusterLength = len(idCluster)
+        clusterProb = 1.0 * clusterLength / articleLength
+
+        clusterProbDict[i] = clusterProb
+        catsProbDict = defaultdict(int)
+        for cats in catsCluster[i]:
+            for id in idCluster:
+                probsDict = ast.literal_eval(clusterCatsTable.loc[id, 'categoryProb'])
+                if cats in probsDict:
+                    catsProbDict[cats] += pi * probsDict[cats] / clusterProb #Calculates p(c_i|W_j)
+        clusterCatsDict[i] = catsProbDict
+
+    # Calculates difference in mutual information
+    for i in clusterCatsTable['cluster'].unique():
+        idCluster = clusterCatsTable.loc[clusterCatsTable['cluster'] == i].index
+        for id in idCluster:
+            KL = 0
+            catsProbDict = clusterCatsDict[i]
+            probsDict = ast.literal_eval(clusterCatsTable.loc[id, 'categoryProb'])
+            for key in probsDict:
+                KL +=  pi * probsDict.get(key) * math.log(probsDict.get(key) / catsProbDict[key])
+            finalKL += KL
+
+    return finalKL
+
+def testwithinClusterHomogeneity():
+    sampleCatsTable = CategoryTable.loc[np.repeat([0,1,2],3)]
+    sampleCatsTable = sampleCatsTable.drop('id',1)
+    sampleCatsTable.index = range(9)
+
+
+    clusterTable = pd.DataFrame(pd.Series([0,0,0,1,1,1,2,2,2]),columns = ['cluster'])
+    clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
+
+    MID1 = withinClusterHomogeneity(clusterCatsTable)
+
+    clusterTable = pd.DataFrame(pd.Series([0, 0, 1, 1, 1, 2, 2, 2, 0]), columns=['cluster'])
+    clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
+
+    MID2 = withinClusterHomogeneity(clusterCatsTable)
+
+    clusterTable = pd.DataFrame(pd.Series([0, 1, 2, 1, 1, 0, 2, 2, 1]), columns=['cluster'])
+    clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
+
+    MID3 = withinClusterHomogeneity(clusterCatsTable)
+
+    clusterTable = pd.DataFrame(pd.Series([0, 1, 2, 0, 1, 2, 0, 1, 2]), columns=['cluster'])
+    clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
+
+    MID4 = withinClusterHomogeneity(clusterCatsTable)
+
+    assert all([MID1 < MID2, MID2 < MID3, MID3 < MID4])
+
+
+def betweenClusterHeterogeneity(clusterCatsTable):
+    '''
+    Calculates the ability of a clustering algorithm to force differences between clusters
+    See http://www.jmlr.org/papers/volume3/dhillon03a/dhillon03a.pdf for equation (13)
+    :param clusterCatsTable: table with articles, category count (in JSON format) and cluster id
+    :return: difference in mutual information
+    '''
+
+    # Instantiates variables
+    articleLength = 1.0 * len(clusterCatsTable)
+    catsCluster = defaultdict(list)
+    clusterCatsDict = defaultdict(lambda: defaultdict(int))
+    totalsCatsPerWord = defaultdict(int)
+    avgProb = defaultdict(float)
+    categories = []
+    clusterProbDict = {}
+    pi = 1.0 / len(clusterCatsTable)
+    finalKL = 0
+
+    for _, (id, row) in enumerate(clusterCatsTable.iterrows()):
+        catDict = ast.literal_eval(row['category'])
+        totalsCatsPerWord[id] = sum(catDict.values())
+        total = 1.0 * totalsCatsPerWord[id]
+        probsDict = {key: val / total for key, val in catDict.iteritems()}  # Calculates p(c_i|a_t)
+        clusterCatsTable.loc[id, 'categoryProb'] = str(probsDict)
+        clusterId = row['cluster']
+        catsCluster[clusterId].extend([key for key in catDict if not (key in catsCluster[clusterId])])
+        categories.extend([key for key in catDict if not (key in categories)])
+
+    # calculates m_j(c_i)
+    for i in clusterCatsTable['cluster'].unique():
+        idCluster = clusterCatsTable.loc[clusterCatsTable['cluster'] == i].index
+        clusterSize = len(idCluster)
+        clusterProb = 1.0 * clusterSize / articleLength
+
+        clusterProbDict[i] = clusterProb
+        catsProbDict = defaultdict(int)
+
+        for cats in catsCluster[i]:
+            for id in idCluster:
+                probsDict = ast.literal_eval(clusterCatsTable.loc[id, 'categoryProb'])
+                if cats in probsDict:
+                    catsProbDict[cats] += pi * probsDict[cats] / clusterProb  # Calculates m_j(c_i) = p(c_i|W_j)
+        clusterCatsDict[i] = catsProbDict
+
+    # calculates m(c_i)
+    for cats in categories:
+        for index in clusterCatsTable.index:
+            probsDict = ast.literal_eval(clusterCatsTable.loc[index, 'categoryProb'])
+            if cats in probsDict:
+                avgProb[cats] += pi * probsDict[cats]  # m(c_i) = sum_t pi_t * p(c_i|w_t)
+
+    # Calculates difference in mutual information
+    for i in clusterCatsTable['cluster'].unique():
+        catsProbDict = clusterCatsDict[i]
+        for cats, prob in catsProbDict.iteritems():
+            finalKL += clusterProbDict[i] * prob * math.log(prob / avgProb[cats])
+
+    return finalKL
+
+
+def testbetweenClusterHeterogeneity():
+    sampleCatsTable = CategoryTable.loc[np.repeat([0, 1, 2], 3)]
+    sampleCatsTable = sampleCatsTable.drop('id', 1)
+    sampleCatsTable.index = range(9)
+
+    clusterTable = pd.DataFrame(pd.Series([0, 0, 0, 1, 1, 1, 2, 2, 2]), columns=['cluster'])
+    clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
+
+    MID1 = betweenClusterHeterogeneity(clusterCatsTable)
+
+    clusterTable = pd.DataFrame(pd.Series([0, 0, 1, 1, 1, 2, 2, 2, 0]), columns=['cluster'])
+    clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
+
+    MID2 = betweenClusterHeterogeneity(clusterCatsTable)
+
+    clusterTable = pd.DataFrame(pd.Series([0, 1, 2, 1, 1, 0, 2, 2, 1]), columns=['cluster'])
+    clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
+
+    MID3 = betweenClusterHeterogeneity(clusterCatsTable)
+
+    clusterTable = pd.DataFrame(pd.Series([0, 1, 2, 0, 1, 2, 0, 1, 2]), columns=['cluster'])
+    clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
+
+    MID4 = betweenClusterHeterogeneity(clusterCatsTable)
+
+    assert all([MID1 > MID2, MID2 > MID3, MID3 > MID4])
 
 def labelMetric(tfidf_scores):
     """
-    :param tfidf_scores: A data frame with the following columns: articles ids, tf-idf scores, clusters 
-    :return: A score of clusters' labels based on the average tf-idf scores of articles in the clusters 
+    :param tfidf_scores: A data frame with the following columns: articles ids, tf-idf scores, clusters
+    :return: A score of clusters' labels based on the average tf-idf scores of articles in the clusters
     """
     stat = defaultdict(list)
     for id, row in tfidf_scores.iterrows():
