@@ -5,6 +5,8 @@ import numpy as np
 import tsne
 
 from clumbed.evaluate.metrics import embedTrustworthiness, neighborOverlap
+from clumbed.nn_tsne.utils import dist_matrix2, pca
+from scipy import sparse
 
 np.random.seed(71)
 import pandas as pd
@@ -15,6 +17,10 @@ from keras import backend as K
 from keras.models import Sequential
 from keras.layers.core import Dense, Activation
 
+import tensorflow as tf
+
+from sklearn.utils import shuffle
+
 import multiprocessing as mp
 
 
@@ -24,9 +30,10 @@ nb_epoch = 1000
 shuffle_interval = nb_epoch + 1
 n_jobs = 4
 perplexity = 30
+batch_size = 100
 
 
-def Hbeta(D, beta):
+def Hbeta(i, D, beta):
     """
     Compute the perplexity (H) and P-row for a specific value of the precision of a
     Gaussian distribution.
@@ -36,6 +43,7 @@ def Hbeta(D, beta):
     """
 
     P = np.exp(-D * beta)       # Probability for each point
+    P[i] = 0
     sumP = np.sum(P)            # Normalizing constant
 
     # WTF is this? I think log(perplexity), but not sure why
@@ -57,7 +65,7 @@ def x2p_job(data):
     beta = 1.0
     betamin = -np.inf
     betamax = np.inf
-    H, thisP = Hbeta(Di, beta)
+    H, pRow = Hbeta(i, Di, beta)
 
     Hdiff = H - logU
     tries = 0
@@ -75,11 +83,20 @@ def x2p_job(data):
             else:
                 beta = (betamin + betamax) / 2
 
-        H, thisP = Hbeta(Di, beta)
+        H, pRow = Hbeta(i, Di, beta)
         Hdiff = H - logU
         tries += 1
 
-    return i, thisP
+
+    # sum1 = pRow.sum()
+    index = pRow.shape[0] - perplexity*3
+    threshold = np.partition(pRow, index)[index]
+    pRow[pRow < threshold] = 0.0
+    pRow[np.isnan(pRow)] = 0
+    # sum2 = pRow.sum()
+    # print(sum1, sum2)
+
+    return i, sparse.lil_matrix(pRow)
 
 
 def x2p(X):
@@ -89,11 +106,14 @@ def x2p(X):
 
     # Square of L2 norms for each point
     sum_X = np.sum(np.square(X), axis=1)
+    # print(sum_X.shape)
 
     D = sum_X + (sum_X.reshape([-1, 1]) - 2 * np.dot(X, X.T))
+    # print(D.shape)
 
-    idx = (1 - np.eye(n)).astype(bool)
-    D = D[idx].reshape([n, -1])
+    # idx = (1 - np.eye(n)).astype(bool)
+    # D = D[idx].reshape([n, -1])
+    # print(D.shape)
 
     def generator():
         for i in xrange(n):
@@ -101,9 +121,10 @@ def x2p(X):
 
     pool = mp.Pool(n_jobs)
     result = pool.map(x2p_job, generator())
-    P = np.zeros([n, n])
-    for i, thisP in result:
-        P[i, idx[i]] = thisP
+    P = sparse.lil_matrix((n, n))
+    for i, pRow in result:
+        P[i,:] = pRow
+    P = sparse.csr_matrix(P)
 
     return P
 
@@ -111,24 +132,31 @@ def x2p(X):
 def calculate_P(X):
     print "Computing pairwise distances..."
     P = x2p(X)
-    P[np.isnan(P)] = 0
     P = P + P.T
     P = P / P.sum()
-    P = np.maximum(P, 1e-12)
+    # P = np.maximum(P, 1e-12)
+    print(P, P.data.shape)
     return P
 
 
 def KLdivergence(P, Y):
-    alpha = low_dim - 1.
-    sum_Y = K.sum(K.square(Y), axis=1)
     eps = K.variable(10e-15)
-    D = sum_Y + K.reshape(sum_Y, [-1, 1]) - 2 * K.dot(Y, K.transpose(Y))
-    Q = K.pow(1 + D / alpha, -(alpha + 1) / 2)
-    Q *= K.variable(1 - np.eye(500))
+
+    # Calculate euclidean distance matrix squared
+    D = dist_matrix2(Y, K)
+
+    print(P)
+
+    # Calculate TSNE probability in embedded space
+    Q = K.pow(1 + D, -1)
+    Q *= (1 - K.eye(batch_size))
     Q /= K.sum(Q)
     Q = K.maximum(Q, eps)
+
+    # Calculate KL divergence between original prob P and TSNE prob Q
     C = K.log((P + eps) / (Q + eps))
     C = K.sum(P * C)
+
     return C
 
 print "load data"
@@ -136,7 +164,7 @@ print "load data"
 # (X_train, y_train), (X_test, y_test) = cifar10.load_data()
 # n, channel, row, col = X_train.shape
 
-input_dir = './data/simple_500'
+input_dir = './data/simple_5000'
 df = pd.read_table(input_dir + '/vectors.tsv', index_col=0, skiprows=1, header=None)
 
 vecs = df.as_matrix()
@@ -145,11 +173,11 @@ vecs = df.as_matrix()
 # Sanity check
 coords = tsne.bh_sne(vecs, perplexity=perplexity)
 print('original values:')
-print(embedTrustworthiness(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
-print(neighborOverlap(pd.DataFrame(vecs), pd.DataFrame(coords), 10))
+print(embedTrustworthiness(pd.DataFrame(vecs), pd.DataFrame(coords), 5))
+print(neighborOverlap(pd.DataFrame(vecs), pd.DataFrame(coords), 5))
 
 
-# X = utils.pca(vecs, initial_dims).real
+# X = pca(vecs, initial_dims).real
 X = vecs
 n, d = X.shape
 
@@ -174,11 +202,17 @@ P *= 4
 print(P.shape)
 
 for epoch in range(nb_epoch):
-    if epoch == 100:
+    if epoch == 250:
         P /= 4
 
     # train
-    loss = model.train_on_batch(X, P)
+    indexes = np.random.permutation(n)
+    loss = 0
+    for i in range(0, n, batch_size):
+        batch_indexes = indexes[i:i+batch_size]
+        X_ = X[batch_indexes]
+        P_ = P[batch_indexes].T[batch_indexes].T
+        loss += model.train_on_batch(X_, P_.toarray())
 
     # visualize training process
     coords = model.predict(X)
@@ -186,5 +220,5 @@ for epoch in range(nb_epoch):
     if epoch % 50 == 0:
         print "Epoch: {}/{}, loss: {}".format(epoch+1, nb_epoch, loss)
         print('trustworthiness %f, overlap %f' %
-              (embedTrustworthiness(pd.DataFrame(vecs), pd.DataFrame(coords), 10),
-              neighborOverlap(pd.DataFrame(vecs), pd.DataFrame(coords), 10)))
+              (embedTrustworthiness(pd.DataFrame(vecs), pd.DataFrame(coords), 5),
+              neighborOverlap(pd.DataFrame(vecs), pd.DataFrame(coords), 5)))
