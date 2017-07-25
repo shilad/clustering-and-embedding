@@ -7,6 +7,7 @@ from clumbed.evaluate.plot import *
 from clumbed.wrangle.augment import *
 from clumbed.wrangle.result_dir import ResultDir
 from clumbed.tfidf import tfidf
+from clumbed.hierarchical_clusters import agglomerativeHierarchicalClusters
 
 # Handle non-ASCII characters
 reload(sys)
@@ -14,7 +15,7 @@ sys.setdefaultencoding('utf8')
 sys.path.insert(0, '..')
 
 # Prepare input and output directories
-input_dir = 'data/simple_500'
+input_dir = 'data/simple_5000'
 res = ResultDir()
 res.log('Input dir: ' + input_dir)
 res.log('Output dir: ' + res.get())
@@ -117,3 +118,8 @@ for vname, vconfig in VECTOR_CONFIG.items():
     plt.clf()  # Clear plot
 
     # TODO: Hierarchical
+
+    data, hac_label_df, hac_clusters = agglomerativeHierarchicalClusters(vecs_df, names_df, category_df, 7)
+    data.to_csv(res.get() + '/hac_data_' + vname + '.tsv', sep='\t')
+    hac_label_df.to_csv(res.get() + '/hac_labels_' + vname + '.tsv', sep='\t')
+    hac_clusters.to_csv(res.get() + '/hac_clusters_' + vname + '.tsv', sep='\t')
