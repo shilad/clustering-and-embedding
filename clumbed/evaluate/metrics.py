@@ -6,6 +6,7 @@ from scipy.spatial.distance import pdist, squareform
 import ast
 from collections import defaultdict
 import numpy as np
+import math
 
 def kl(p, q):
     """Kullback-Leibler divergence D(P || Q) for discrete distributions
@@ -223,51 +224,47 @@ def labelMetric(tfidf_scores):
 def withinClusterHomogeneity(clusterCatsTable):
     '''
     Calculates the ability of a clustering algorithm to preserve the category structure of a word during clustering
+    More specifically, calculates the KL divergence between the article categories and cluster categories
     See http://www.jmlr.org/papers/volume3/dhillon03a/dhillon03a.pdf for equation (13)
     :param clusterCatsTable: table with articles, category count (in JSON format) and cluster id
     :return: difference in mutual information
     '''
 
     #Instantiates variables
-    articleLength = 1.0 * len(clusterCatsTable)
-    catsCluster = defaultdict(list)
-    clusterCatsDict =  defaultdict(lambda: defaultdict(int))
-    totalsCatsPerWord = defaultdict(int)
-    clusterProbDict = {}
-    pi = 1.0/len(clusterCatsTable)
+    numArticles = 1.0 * len(clusterCatsTable)
+    catsInCluster = defaultdict(set)                            # cluster -> set(categories)
+    articlesInCluster = defaultdict(set)                        # cluster -> set(articles)
+    clusterCatScores =  defaultdict(lambda: defaultdict(int))   # cluster -> category -> score
+    totalsCatsPerArticle = defaultdict(int)                     # article -> num category
+    clusterProbDict = {}                                        # prior probability of cluster
+    pi = 1.0/numArticles
     finalKL = 0
 
-
-    for _, (id, row) in enumerate(clusterCatsTable.iterrows()):
+    for id, row in clusterCatsTable.iterrows():
         catDict = ast.literal_eval(row['category'])
-        totalsCatsPerWord[id] = sum(catDict.values())
-        total = 1.0 * totalsCatsPerWord[id]
-        probsDict = {key: val/total for key, val in catDict.iteritems()} #Calculates p(c_i|a_t)
+        total = sum(catDict.values())
+        totalsCatsPerArticle[id] = total
+        probsDict = {key: 1.0*val/total for key, val in catDict.iteritems()} #Calculates p(c_i|a_t)
         clusterCatsTable.loc[id,'categoryProb'] = str(probsDict)
         clusterId = row['cluster']
-        catsCluster[clusterId].extend([key for key in catDict if not (key in catsCluster[clusterId])])
+        catsInCluster[clusterId].update(catDict.keys())
+        articlesInCluster[clusterId].add(id)
 
     #calculates p2
-    for i in clusterCatsTable['cluster'].unique():
-        idCluster = clusterCatsTable.loc[clusterCatsTable['cluster'] == i].index
-        clusterLength = len(idCluster)
-        clusterProb = 1.0 * clusterLength / articleLength
-
-        clusterProbDict[i] = clusterProb
+    for i in catsInCluster:
         catsProbDict = defaultdict(int)
-        for cats in catsCluster[i]:
-            for id in idCluster:
+        for cat in catsInCluster[i]:
+            for id in articlesInCluster[i]:
                 probsDict = ast.literal_eval(clusterCatsTable.loc[id, 'categoryProb'])
-                if cats in probsDict:
-                    catsProbDict[cats] += pi * probsDict[cats] / clusterProb #Calculates p(c_i|W_j)
-        clusterCatsDict[i] = catsProbDict
+                if cat in probsDict:
+                    catsProbDict[cat] += 1.0 * probsDict[cat] / len(articlesInCluster[i]) # Calculates p(c_i|W_j)
+        clusterCatScores[i] = catsProbDict
 
     # Calculates difference in mutual information
-    for i in clusterCatsTable['cluster'].unique():
-        idCluster = clusterCatsTable.loc[clusterCatsTable['cluster'] == i].index
-        for id in idCluster:
+    for i in articlesInCluster:
+        for id in articlesInCluster[i]:
             KL = 0
-            catsProbDict = clusterCatsDict[i]
+            catsProbDict = clusterCatScores[i]
             probsDict = ast.literal_eval(clusterCatsTable.loc[id, 'categoryProb'])
             for key in probsDict:
                 KL +=  pi * probsDict.get(key) * math.log(probsDict.get(key) / catsProbDict[key])
@@ -276,13 +273,12 @@ def withinClusterHomogeneity(clusterCatsTable):
     return finalKL
 
 def testwithinClusterHomogeneity():
-    sampleCatsTable = CategoryTable.loc[np.repeat([0,1,2],3)]
-    sampleCatsTable = sampleCatsTable.drop('id',1)
-    sampleCatsTable.index = range(9)
-
+    cats = [repr({'cat' + str(i // 3): 1}) for i in range(9)]
+    sampleCatsTable = pd.DataFrame(pd.Series(cats), columns=['category'])
 
     clusterTable = pd.DataFrame(pd.Series([0,0,0,1,1,1,2,2,2]),columns = ['cluster'])
     clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
+
 
     MID1 = withinClusterHomogeneity(clusterCatsTable)
 
@@ -313,41 +309,39 @@ def betweenClusterHeterogeneity(clusterCatsTable):
     '''
 
     # Instantiates variables
-    articleLength = 1.0 * len(clusterCatsTable)
-    catsCluster = defaultdict(list)
-    clusterCatsDict = defaultdict(lambda: defaultdict(int))
-    totalsCatsPerWord = defaultdict(int)
+    numArticles = 1.0 * len(clusterCatsTable)
+    catsInCluster = defaultdict(set)                            # cluster -> set(categories)
+    articlesInCluster = defaultdict(set)                        # cluster -> set(articles)
+    clusterCatScores =  defaultdict(lambda: defaultdict(int))   # cluster -> category -> score
+    totalsCatsPerArticle = defaultdict(int)                     # article -> num category
     avgProb = defaultdict(float)
-    categories = []
+    categories = set()
     clusterProbDict = {}
-    pi = 1.0 / len(clusterCatsTable)
+    pi = 1.0 / numArticles
     finalKL = 0
 
-    for _, (id, row) in enumerate(clusterCatsTable.iterrows()):
+    for id, row in clusterCatsTable.iterrows():
         catDict = ast.literal_eval(row['category'])
-        totalsCatsPerWord[id] = sum(catDict.values())
-        total = 1.0 * totalsCatsPerWord[id]
-        probsDict = {key: val / total for key, val in catDict.iteritems()}  # Calculates p(c_i|a_t)
-        clusterCatsTable.loc[id, 'categoryProb'] = str(probsDict)
+        total = sum(catDict.values())
+        totalsCatsPerArticle[id] = total
+        probsDict = {key: 1.0*val/total for key, val in catDict.iteritems()} #Calculates p(c_i|a_t)
+        clusterCatsTable.loc[id,'categoryProb'] = str(probsDict)
         clusterId = row['cluster']
-        catsCluster[clusterId].extend([key for key in catDict if not (key in catsCluster[clusterId])])
-        categories.extend([key for key in catDict if not (key in categories)])
+        catsInCluster[clusterId].update(catDict.keys())
+        articlesInCluster[clusterId].add(id)
+        categories.update(catDict.keys())
 
     # calculates m_j(c_i)
-    for i in clusterCatsTable['cluster'].unique():
-        idCluster = clusterCatsTable.loc[clusterCatsTable['cluster'] == i].index
-        clusterSize = len(idCluster)
-        clusterProb = 1.0 * clusterSize / articleLength
-
-        clusterProbDict[i] = clusterProb
+    for i in catsInCluster:
+        clusterProbDict[i] = 1.0 * len(articlesInCluster[i]) / numArticles
         catsProbDict = defaultdict(int)
 
-        for cats in catsCluster[i]:
-            for id in idCluster:
+        for cats in catsInCluster[i]:
+            for id in articlesInCluster[i]:
                 probsDict = ast.literal_eval(clusterCatsTable.loc[id, 'categoryProb'])
                 if cats in probsDict:
-                    catsProbDict[cats] += pi * probsDict[cats] / clusterProb  # Calculates m_j(c_i) = p(c_i|W_j)
-        clusterCatsDict[i] = catsProbDict
+                    catsProbDict[cats] += 1.0 * probsDict[cats] / len(articlesInCluster[i]) # Calculates m_j(c_i) = p(c_i|W_j)
+        clusterCatScores[i] = catsProbDict
 
     # calculates m(c_i)
     for cats in categories:
@@ -358,7 +352,7 @@ def betweenClusterHeterogeneity(clusterCatsTable):
 
     # Calculates difference in mutual information
     for i in clusterCatsTable['cluster'].unique():
-        catsProbDict = clusterCatsDict[i]
+        catsProbDict = clusterCatScores[i]
         for cats, prob in catsProbDict.iteritems():
             finalKL += clusterProbDict[i] * prob * math.log(prob / avgProb[cats])
 
@@ -366,9 +360,8 @@ def betweenClusterHeterogeneity(clusterCatsTable):
 
 
 def testbetweenClusterHeterogeneity():
-    sampleCatsTable = CategoryTable.loc[np.repeat([0, 1, 2], 3)]
-    sampleCatsTable = sampleCatsTable.drop('id', 1)
-    sampleCatsTable.index = range(9)
+    cats = [repr({'cat' + str(i // 3): 1}) for i in range(9)]
+    sampleCatsTable = pd.DataFrame(pd.Series(cats), columns=['category'])
 
     clusterTable = pd.DataFrame(pd.Series([0, 0, 0, 1, 1, 1, 2, 2, 2]), columns=['cluster'])
     clusterCatsTable = pd.merge(sampleCatsTable, clusterTable, how='left', left_index=True, right_index=True)
