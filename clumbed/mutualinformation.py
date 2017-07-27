@@ -88,7 +88,7 @@ def mutualInformation(categories_df,cluster_df):
 
 
     #Calculates mutual information
-    mutual_dict = defaultdict(lambda: defaultdict(int))
+    score_dict = defaultdict(lambda: defaultdict(int))
     for i in list_cluster:
         categories = N11[i]
         dict = defaultdict(int)
@@ -98,10 +98,10 @@ def mutualInformation(categories_df,cluster_df):
                 dict_N10 = N10[i]
                 dict_N00 = N00[i]
 
-                N1_ = dict_N11[cats] + dict_N10[cats] #Number of articles that are contained in the i^th cluster
-                N_1 = dict_N11[cats] + dict_N01[cats] #Number of articles that belong to cats category
-                N0_ = dict_N01[cats] + dict_N00[cats] #Number of articles that are not contained in the i^th cluster
-                N_0 = dict_N10[cats] + dict_N00[cats] #Number of articles that do not belong to cats category
+                N1_ = dict_N11[cats] + dict_N10[cats] #Number of articles that belong to cats category
+                N_1 = dict_N11[cats] + dict_N01[cats] #Number of articles that are contained in the i^th cluster
+                N0_ = dict_N01[cats] + dict_N00[cats] #Number of articles that do not belong to cats category
+                N_0 = dict_N10[cats] + dict_N00[cats] #Number of articles that are not contained in the i^th cluster
 
 
                 if not dict_N11[cats] == 0:
@@ -113,21 +113,44 @@ def mutualInformation(categories_df,cluster_df):
                 if not dict_N00[cats] == 0:
                     dict[cats] += (1.0/N)*dict_N00[cats]*math.log(1.0 * N*dict_N00[cats] / (N0_*N_0))
 
-        mutual_dict[i]= dict
+        score_dict[i]= dict
 
-    mutual_df = pd.DataFrame(categories_df.index, columns=['id'])
+        score_df = pd.DataFrame(categories_df.index, columns=['id'])
 
     #top 5 candidate labels
     for i in categories_df.index:
         cluster_id = cluster_df.loc[i,'cluster']
         catDict= ast.literal_eval(categories_df.loc[i,'category'])
         for cat in catDict:
-            catDict[cat] = mutual_dict[cluster_id].get(cat)
-        mutual_df.loc[mutual_df.loc[:,'id'] == i,'score'] = str(catDict)
-    mutual_df.set_index('id')
-    label_df = pd.DataFrame([[k,sorted(dict, key=dict.get, reverse=True)[0:5]] for k, dict in mutual_dict.iteritems()], columns=['cluster', 'top5names'])
+            catDict[cat] = score_dict[cluster_id].get(cat)
+        score_df.loc[score_df.loc[:,'id'] == i,'labels'] = str(catDict)
+    score_df.set_index('id')
+    label_df = pd.DataFrame([[k,sorted(dict, key=dict.get, reverse=True)[0:5]] for k, dict in score_dict.iteritems()], columns=['cluster', 'top5names'])
     label_df.set_index('cluster')
 
-    return mutual_df, label_df
+    return label_df,score_df
+
+
+size = 50000
+categories_df = pd.read_table('data/simple_'+str(size)+'/categories.tsv', index_col='id')
+#vectors = pd.read_table('data/simple_'+str(size)+'/vectors.tsv',index_col='id')
+#names = pd.read_table('data/simple_'+str(size)+'/names.tsv',index_col='id')
+cluster_df = pd.read_table('data/simple_'+str(size)+'/cluster_names_df.tsv',index_col='id')
+
+#kmeans = KMeans(200).fit(vectors)
+#data={'cluster': kmeans.labels_,'id': vectors.index}
+#cluster_df= pd.DataFrame(data,columns=['id','cluster'])
+#cluster_df=cluster_df.set_index('id')
+#cluster_df = cluster_df.loc[categories_df.index]
+
+label_df, score_df  = mutualInformation(categories_df,cluster_df)
+
+print label_df
+
+#cluster_names_df = (pd.merge(cluster_df.reset_index(),names.reset_index(),left_on='id',right_on='id',left_index=True)).sort_values('cluster')
+#cluster_names_df.set_index('id')
+#cluster_names_df.to_csv('data/simple_'+str(size)+'/cluster_names_df.tsv',sep='\t',index='id')
+
+label_df.to_csv('data/simple_'+str(size)+'/cluster_labels_mutualinfo.tsv',sep='\t',index='cluster')
 
 
